@@ -1,0 +1,1664 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Claude 101 — Samsung Electronics Internal Guide</title>
+<link href="https://fonts.googleapis.com/css2?family=Lora:ital,wght@0,400;0,600;0,700;1,400&family=Poppins:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+
+/* ===========================================
+   CLAUDE BRAND — CSS CUSTOM PROPERTIES
+   =========================================== */
+:root {
+  --bg-dark:      #141413;
+  --bg-light:     #faf9f5;
+  --bg-pampas:    #f4f3ee;
+  --bg-chapter:   #1c1b1a;
+  --accent:       #da7756;
+  --accent-deep:  #c15f3c;
+  --gray-mid:     #b0aea5;
+  --gray-light:   #e8e6dc;
+  --text-dark:    #141413;
+  --text-light:   #faf9f5;
+
+  /* TYPE SCALE — head title always larger than supporting text */
+  --title-xl:    clamp(2.4rem, 6.5vw, 5.5rem);   /* hero / chapter titles */
+  --title-lg:    clamp(1.8rem, 4.5vw, 3.8rem);   /* main slide headings */
+  --title-md:    clamp(1.3rem, 3vw, 2.2rem);     /* section labels */
+  --body:        clamp(0.78rem, 1.35vw, 1rem);   /* body copy */
+  --small:       clamp(0.68rem, 1.05vw, 0.85rem);/* captions / table */
+  --label:       clamp(0.58rem, 0.88vw, 0.72rem);/* tags / badges */
+
+  --font-serif: 'Lora', Georgia, serif;
+  --font-sans:  'Poppins', sans-serif;
+  --slide-pad:  clamp(1.8rem, 4.5vw, 4.5rem);
+  --gap:        clamp(0.7rem, 1.8vw, 1.8rem);
+  --gap-sm:     clamp(0.4rem, 1vw, 0.9rem);
+  --ease:       cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* ===========================================
+   VIEWPORT BASE — MANDATORY
+   =========================================== */
+*, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow-x: hidden; }
+html { scroll-snap-type: y mandatory; scroll-behavior: smooth; }
+
+.slide {
+  width: 100vw; height: 100vh; height: 100dvh;
+  overflow: hidden; scroll-snap-align: start;
+  display: flex; flex-direction: column; position: relative;
+}
+.slide-content {
+  flex: 1; display: flex; flex-direction: column;
+  justify-content: center; max-height: 100%; overflow: hidden;
+  padding: var(--slide-pad);
+}
+img { max-width: 100%; max-height: min(48vh, 380px); object-fit: contain; }
+.card, .box { max-width: min(90vw, 1000px); max-height: min(80vh, 680px); }
+
+@media (max-height: 700px) {
+  :root { --slide-pad: clamp(0.8rem,3vw,2rem); --gap: clamp(0.4rem,1.2vw,1rem); --title-lg: clamp(1.3rem,4vw,2.5rem); }
+}
+@media (max-height: 600px) {
+  :root { --slide-pad: clamp(0.5rem,2vw,1.2rem); --title-lg: clamp(1.1rem,3.5vw,2rem); --body: clamp(0.68rem,1.1vw,0.85rem); }
+  .nav-dots, .kbd-hint { display: none; }
+}
+@media (max-width: 600px) { :root { --title-xl: clamp(1.8rem,8vw,3rem); } }
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; transition-duration: .2s !important; }
+  html { scroll-behavior: auto; }
+}
+
+/* ===========================================
+   REVEAL ANIMATIONS
+   =========================================== */
+.reveal       { opacity: 0; transform: translateY(20px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+.reveal-left  { opacity: 0; transform: translateX(-24px); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+.reveal-scale { opacity: 0; transform: scale(0.94); transition: opacity .6s var(--ease), transform .6s var(--ease); }
+
+.slide.visible .reveal,
+.slide.visible .reveal-left,
+.slide.visible .reveal-scale { opacity: 1; transform: none; }
+
+.slide.visible .reveal:nth-child(1)      { transition-delay:.05s; }
+.slide.visible .reveal:nth-child(2)      { transition-delay:.15s; }
+.slide.visible .reveal:nth-child(3)      { transition-delay:.25s; }
+.slide.visible .reveal:nth-child(4)      { transition-delay:.35s; }
+.slide.visible .reveal:nth-child(5)      { transition-delay:.45s; }
+.slide.visible .reveal:nth-child(6)      { transition-delay:.55s; }
+.slide.visible .reveal-left:nth-child(1) { transition-delay:.08s; }
+.slide.visible .reveal-left:nth-child(2) { transition-delay:.18s; }
+.slide.visible .reveal-left:nth-child(3) { transition-delay:.28s; }
+.slide.visible .reveal-left:nth-child(4) { transition-delay:.38s; }
+
+/* ===========================================
+   GLOBAL UI
+   =========================================== */
+.progress-bar {
+  position: fixed; top: 0; left: 0; height: 2px;
+  background: var(--accent); width: 0%; z-index: 1000;
+  transition: width .3s ease;
+}
+.nav-dots {
+  position: fixed; right: clamp(.8rem,2vw,1.5rem); top: 50%;
+  transform: translateY(-50%); display: flex; flex-direction: column;
+  gap: clamp(5px,.9vh,9px); z-index: 900;
+}
+.nav-dot {
+  width: 5px; height: 5px; border-radius: 50%;
+  background: rgba(218,119,86,.25); cursor: pointer;
+  border: none; padding: 0; transition: background .3s, transform .3s;
+}
+.nav-dot.active { background: var(--accent); transform: scale(1.5); }
+
+/* ===========================================
+   SHARED COMPONENTS
+   =========================================== */
+.eyebrow {
+  display: flex; align-items: center; gap: .7em;
+  font-family: var(--font-sans); font-size: var(--label);
+  font-weight: 600; letter-spacing: .2em; text-transform: uppercase; color: var(--accent);
+}
+.eyebrow-line { width: clamp(16px,2.5vw,28px); height: 1px; background: var(--accent); flex-shrink: 0; }
+
+/* ===========================================
+   HEADING HIERARCHY — 대제목 > 소제목 > 본문
+   .slide-main-title  (대제목) = large, bold, uppercase
+   .slide-subtitle    (소제목) = smaller, italic, muted
+   =========================================== */
+.slide-main-title {
+  font-family: var(--font-serif);
+  font-size: clamp(1.5rem, 3.2vw, 2.6rem);
+  font-weight: 700; color: var(--accent);
+  letter-spacing: .02em; text-transform: uppercase; line-height: 1.1;
+}
+.slide-subtitle {
+  font-family: var(--font-serif);
+  font-size: clamp(0.8rem, 1.3vw, 1rem);
+  font-weight: 400; color: var(--gray-mid);
+  line-height: 1.6; font-style: italic;
+}
+.slide-subtitle strong { color: rgba(250,249,245,.75); font-style: normal; font-weight: 600; }
+
+/* Legacy .slide-h kept for chapter/split slides only */
+.slide-h { font-family: var(--font-serif); font-size: var(--title-lg); font-weight: 700; color: var(--text-light); line-height: 1.1; letter-spacing: -.02em; }
+.slide-h em { font-style: italic; color: var(--accent); }
+
+/* Supporting text */
+.slide-lead { font-family: var(--font-sans); font-size: var(--body); font-weight: 400; color: var(--gray-mid); line-height: 1.7; }
+.slide-lead strong { color: var(--text-light); font-weight: 600; }
+
+/* Mode cards for Desktop App */
+.mode-cards { display: grid; grid-template-columns: repeat(3,1fr); gap: clamp(.5rem,1.2vw,1rem); }
+.mode-card { border-radius: 12px; padding: clamp(.8rem,1.8vw,1.4rem); display: flex; flex-direction: column; gap: .55em; }
+.mode-card.chat-card   { background: rgba(218,119,86,.1);  border: 1px solid rgba(218,119,86,.25); }
+.mode-card.cowork-card { background: rgba(176,174,165,.07);border: 1px solid rgba(176,174,165,.2); }
+.mode-card.code-card   { background: rgba(250,249,245,.04);border: 1px solid rgba(250,249,245,.12);}
+.mode-label  { font-family: var(--font-sans); font-size: var(--label); font-weight: 700; letter-spacing: .18em; text-transform: uppercase; color: var(--accent); }
+.mode-title  { font-family: var(--font-serif); font-size: clamp(.95rem,1.9vw,1.45rem); font-weight: 700; color: var(--text-light); }
+.mode-desc   { font-family: var(--font-sans); font-size: var(--small); color: rgba(250,249,245,.62); line-height: 1.5; }
+.mode-feats  { list-style: none; display: flex; flex-direction: column; gap: .3em; }
+.mode-feats li { font-family: var(--font-sans); font-size: var(--label); color: var(--gray-mid); line-height: 1.35; padding-left: 1em; position: relative; }
+.mode-feats li::before { content: '→'; position: absolute; left: 0; color: var(--accent); }
+
+.accent-rule { width: clamp(24px,3.5vw,42px); height: 2px; background: var(--accent); border: none; margin: 0; }
+
+/* Bullet list */
+.b-list { list-style: none; display: flex; flex-direction: column; gap: var(--gap-sm); }
+.b-list li {
+  font-family: var(--font-sans); font-size: var(--body); color: rgba(250,249,245,.82);
+  display: flex; align-items: flex-start; gap: .7em; line-height: 1.55;
+}
+.b-list li::before { content: ''; width: 5px; height: 5px; border-radius: 50%; background: var(--accent); flex-shrink: 0; margin-top: .5em; }
+.b-list li strong { color: var(--text-light); font-weight: 600; }
+
+/* Card */
+.info-card {
+  background: rgba(250,249,245,.04); border: 1px solid rgba(250,249,245,.09);
+  border-radius: 10px; padding: clamp(.7rem,1.8vw,1.4rem);
+  display: flex; flex-direction: column; gap: .45em;
+}
+.info-card .card-title { font-family: var(--font-sans); font-size: var(--small); font-weight: 600; color: var(--text-light); }
+.info-card .card-body  { font-family: var(--font-sans); font-size: var(--small); font-weight: 300; color: var(--gray-mid); line-height: 1.5; }
+.info-card .card-link  { font-family: var(--font-sans); font-size: var(--label); color: var(--accent); text-decoration: none; font-weight: 500; }
+.info-card:hover { border-color: rgba(218,119,86,.28); background: rgba(218,119,86,.06); }
+
+/* Link button */
+.link-btn {
+  display: inline-flex; align-items: center; gap: .4em;
+  font-family: var(--font-sans); font-size: var(--label); font-weight: 600;
+  text-decoration: none; color: var(--accent);
+  border-bottom: 1px solid rgba(218,119,86,.3); padding-bottom: 1px;
+  transition: border-color .2s;
+}
+.link-btn:hover { border-color: var(--accent); }
+.link-btn::after { content: '↗'; font-size: .85em; }
+
+/* Screenshot image */
+.screenshot {
+  border: 1px solid rgba(250,249,245,.1); border-radius: 10px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.4); max-height: min(46vh,350px);
+  width: auto; object-fit: contain;
+}
+
+/* Corner labels */
+.c-label {
+  position: absolute; font-family: var(--font-sans); font-size: var(--label);
+  font-weight: 500; letter-spacing: .14em; text-transform: uppercase;
+}
+.c-tl { top: clamp(1rem,2.5vw,2rem); left: clamp(1rem,2.5vw,2rem); color: rgba(176,174,165,.28); }
+.c-tr { top: clamp(1rem,2.5vw,2rem); right: clamp(1rem,2.5vw,2rem); color: rgba(218,119,86,.4); }
+.c-br { bottom: clamp(1rem,2.5vw,2rem); right: clamp(1rem,2.5vw,2rem); color: rgba(218,119,86,.35); }
+
+/* Glows */
+.glow { position: absolute; border-radius: 50%; filter: blur(80px); pointer-events: none; }
+.glow-a { width: 45%; height: 45%; background: rgba(218,119,86,.1); top: -8%; left: -5%; }
+.glow-b { width: 30%; height: 30%; background: rgba(176,174,165,.06); bottom: 5%; right: 5%; }
+
+/* ===========================================
+   SLIDE 1: TITLE
+   =========================================== */
+#slide-title {
+  background: var(--bg-dark);
+  display: grid; grid-template-columns: 1.1fr .9fr;
+}
+#slide-title .left-col {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: var(--slide-pad); gap: var(--gap); position: relative; z-index: 1;
+}
+#slide-title .title-hero {
+  font-family: var(--font-serif); font-size: var(--title-xl);
+  font-weight: 700; color: var(--text-light); line-height: 1; letter-spacing: -.03em;
+}
+#slide-title .title-hero em { color: var(--accent); font-style: italic; }
+#slide-title .title-sub {
+  font-family: var(--font-sans); font-size: var(--body); font-weight: 300;
+  color: var(--gray-mid); line-height: 1.65; max-width: 400px;
+}
+#slide-title .right-col {
+  display: flex; align-items: center; justify-content: center; position: relative; overflow: hidden;
+  border-left: 1px solid rgba(218,119,86,.08);
+}
+.orbital { width: clamp(90px,14vw,160px); height: clamp(90px,14vw,160px); animation: rot 38s linear infinite; position: relative; z-index: 1; }
+@keyframes rot { to { transform: rotate(360deg); } }
+
+/* ===========================================
+   SLIDE 2: TABLE OF CONTENTS
+   =========================================== */
+#slide-toc { background: var(--bg-dark); }
+#slide-toc .slide-content { gap: var(--gap); }
+
+.toc-grid {
+  display: grid; grid-template-columns: repeat(2, 1fr);
+  gap: clamp(.5rem,1.2vw,1rem); max-height: min(68vh,520px);
+}
+.toc-item {
+  display: flex; align-items: flex-start; gap: .9em; text-decoration: none;
+  background: rgba(250,249,245,.04); border: 1px solid rgba(250,249,245,.08);
+  border-radius: 10px; padding: clamp(.8rem,2vw,1.5rem);
+  transition: background .2s, border-color .2s;
+}
+.toc-item:hover { background: rgba(218,119,86,.08); border-color: rgba(218,119,86,.28); }
+.toc-num {
+  font-family: var(--font-serif); font-size: clamp(1.2rem,2.5vw,2rem);
+  font-weight: 700; color: rgba(218,119,86,.35); line-height: 1; flex-shrink: 0;
+  min-width: 1.6em; font-style: italic;
+}
+.toc-body { display: flex; flex-direction: column; gap: .35em; }
+.toc-section {
+  font-family: var(--font-sans); font-size: var(--small); font-weight: 700;
+  color: var(--text-light); line-height: 1.2;
+}
+.toc-slides {
+  font-family: var(--font-sans); font-size: var(--label); font-weight: 400;
+  color: var(--gray-mid); line-height: 1.5;
+}
+
+/* ===========================================
+   CHAPTER DIVIDERS
+   =========================================== */
+.slide-chapter {
+  background: var(--bg-chapter); align-items: center; justify-content: center;
+}
+.chapter-inner {
+  text-align: center; display: flex; flex-direction: column;
+  align-items: center; gap: var(--gap); padding: var(--slide-pad);
+}
+.ch-bg-num {
+  position: absolute; font-family: var(--font-serif);
+  font-size: clamp(6rem,20vw,16rem); font-weight: 700;
+  color: rgba(218,119,86,.05); line-height: 1; user-select: none;
+  letter-spacing: -.06em;
+}
+.ch-tag {
+  font-family: var(--font-sans); font-size: var(--label); font-weight: 600;
+  letter-spacing: .22em; text-transform: uppercase; color: var(--accent); position: relative; z-index: 1;
+}
+.ch-title {
+  font-family: var(--font-serif); font-size: var(--title-xl); font-weight: 700;
+  color: var(--text-light); line-height: 1.05; position: relative; z-index: 1;
+}
+.ch-desc {
+  font-family: var(--font-sans); font-size: var(--body); color: var(--gray-mid);
+  font-weight: 300; max-width: 480px; line-height: 1.65; position: relative; z-index: 1;
+}
+
+/* ===========================================
+   SPLIT LAYOUT
+   =========================================== */
+.split-slide {
+  background: var(--bg-dark); display: grid; grid-template-columns: 1fr 1fr; overflow: hidden;
+}
+.split-left, .split-right {
+  display: flex; flex-direction: column; justify-content: center;
+  padding: var(--slide-pad); gap: var(--gap);
+}
+.split-right {
+  background: rgba(250,249,245,.02); border-left: 1px solid rgba(250,249,245,.07);
+  gap: var(--gap-sm);
+}
+
+/* ===========================================
+   DARK CONTENT SLIDE
+   =========================================== */
+.dark-slide { background: var(--bg-dark); }
+.dark-slide .slide-content { gap: var(--gap); }
+
+/* ===========================================
+   TABLE COMPONENT (Ways to Access)
+   =========================================== */
+.data-table {
+  width: 100%; border-collapse: collapse; font-family: var(--font-sans);
+  font-size: var(--small); max-height: min(62vh,480px);
+}
+.data-table thead tr { border-bottom: 2px solid rgba(218,119,86,.4); }
+.data-table th {
+  text-align: left; font-size: var(--label); font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: var(--accent); padding: clamp(.4rem,.9vw,.7rem) clamp(.5rem,1vw,.8rem);
+}
+.data-table td {
+  padding: clamp(.4rem,.9vw,.75rem) clamp(.5rem,1vw,.8rem);
+  color: rgba(250,249,245,.8); border-bottom: 1px solid rgba(250,249,245,.07); vertical-align: top; line-height: 1.45;
+}
+.data-table td strong { color: var(--text-light); font-weight: 600; }
+.data-table td a { color: var(--accent); text-decoration: none; }
+.data-table tbody tr:hover td { background: rgba(218,119,86,.04); }
+.data-table .tag {
+  display: inline-block; font-size: calc(var(--label) * .9); padding: .15em .5em;
+  border-radius: 3px; border: 1px solid rgba(218,119,86,.3);
+  color: var(--accent); white-space: nowrap;
+}
+
+/* ===========================================
+   COMPARISON TABLE (Chat/Cowork/Code)
+   =========================================== */
+.compare-table { width: 100%; border-collapse: collapse; font-family: var(--font-sans); font-size: var(--small); }
+.compare-table th {
+  font-size: var(--small); font-weight: 700; color: var(--text-light); text-align: center;
+  padding: clamp(.4rem,.8vw,.7rem); border-bottom: 2px solid rgba(218,119,86,.35);
+}
+.compare-table th.row-head { text-align: left; color: var(--accent); font-size: var(--label); letter-spacing: .1em; text-transform: uppercase; }
+.compare-table th.highlight { color: var(--accent); }
+.compare-table td {
+  padding: clamp(.35rem,.75vw,.6rem); vertical-align: top; text-align: center;
+  color: rgba(250,249,245,.7); border-bottom: 1px solid rgba(250,249,245,.06); line-height: 1.4;
+}
+.compare-table td.row-head { text-align: left; font-weight: 600; color: var(--gray-mid); font-size: var(--label); letter-spacing: .08em; text-transform: uppercase; }
+
+/* ===========================================
+   SKILLS VS PROJECTS TABLE
+   =========================================== */
+.svp-grid { display: grid; grid-template-columns: 1fr 1fr; gap: clamp(.5rem,1.2vw,1rem); }
+.svp-col {
+  border: 1px solid rgba(250,249,245,.09); border-radius: 10px;
+  padding: clamp(.8rem,2vw,1.4rem); display: flex; flex-direction: column; gap: var(--gap-sm);
+}
+.svp-col.accent-col { border-color: rgba(218,119,86,.25); background: rgba(218,119,86,.05); }
+.svp-head {
+  font-family: var(--font-sans); font-size: var(--small); font-weight: 700;
+  color: var(--text-light); padding-bottom: .5em; border-bottom: 1px solid rgba(250,249,245,.1);
+}
+.svp-row { display: flex; flex-direction: column; gap: .2em; }
+.svp-label { font-family: var(--font-sans); font-size: var(--label); color: var(--accent); font-weight: 600; letter-spacing: .08em; text-transform: uppercase; }
+.svp-val { font-family: var(--font-sans); font-size: var(--small); color: rgba(250,249,245,.75); line-height: 1.4; }
+
+/* ===========================================
+   ROLE GRID (Use Cases)
+   =========================================== */
+.role-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: clamp(.4rem,1vw,.9rem); }
+.role-card {
+  background: rgba(250,249,245,.04); border: 1px solid rgba(250,249,245,.08);
+  border-radius: 10px; padding: clamp(.6rem,1.5vw,1.2rem);
+  display: flex; flex-direction: column; gap: .45em;
+  transition: border-color .2s;
+}
+.role-card:hover { border-color: rgba(218,119,86,.3); }
+.role-icon { font-size: clamp(.9rem,1.8vw,1.3rem); }
+.role-name { font-family: var(--font-sans); font-size: var(--small); font-weight: 700; color: var(--text-light); }
+.role-tasks { list-style: none; display: flex; flex-direction: column; gap: .25em; }
+.role-tasks li {
+  font-family: var(--font-sans); font-size: calc(var(--label)*1.05);
+  color: var(--gray-mid); line-height: 1.35; display: flex; gap: .4em;
+}
+.role-tasks li::before { content: '·'; color: var(--accent); flex-shrink: 0; }
+
+/* ===========================================
+   CONNECTOR GRID
+   =========================================== */
+.connector-grid { display: grid; grid-template-columns: repeat(3,1fr); gap: clamp(.4rem,1vw,.9rem); }
+.connector-chip {
+  background: rgba(250,249,245,.05); border: 1px solid rgba(250,249,245,.1);
+  border-radius: 8px; padding: clamp(.5rem,1.2vw,.9rem);
+  display: flex; align-items: center; gap: .6em;
+}
+.connector-chip .chip-icon { font-size: clamp(.9rem,1.7vw,1.2rem); }
+.connector-chip .chip-label { font-family: var(--font-sans); font-size: var(--small); font-weight: 500; color: var(--text-light); }
+.connector-chip .chip-type { font-family: var(--font-sans); font-size: var(--label); color: var(--gray-mid); }
+
+/* ===========================================
+   CLOSING SLIDE
+   =========================================== */
+#slide-closing {
+  background: var(--bg-dark); display: flex; align-items: center; justify-content: center;
+}
+.closing-inner {
+  display: flex; flex-direction: column; align-items: center; gap: var(--gap);
+  padding: var(--slide-pad); text-align: center; max-width: min(90vw,680px);
+}
+.cta-btn {
+  display: inline-flex; align-items: center; gap: .5em;
+  padding: clamp(.65rem,1.4vw,1rem) clamp(1.4rem,3.5vw,2.8rem);
+  background: var(--accent); color: var(--text-light);
+  font-family: var(--font-sans); font-size: var(--label); font-weight: 700;
+  letter-spacing: .1em; text-transform: uppercase; text-decoration: none;
+  border-radius: 999px; transition: background .2s, transform .2s;
+}
+.cta-btn:hover { background: var(--accent-deep); transform: translateY(-2px); }
+.cta-btn-outline {
+  background: transparent; border: 1px solid rgba(218,119,86,.4); color: var(--accent);
+}
+.cta-btn-outline:hover { background: rgba(218,119,86,.08); transform: translateY(-2px); }
+.btn-row { display: flex; flex-wrap: wrap; gap: .9rem; justify-content: center; }
+.ref-links { display: flex; flex-wrap: wrap; gap: clamp(.7rem,1.8vw,1.4rem); justify-content: center; }
+
+/* ===========================================
+   INLINE EDITING
+   =========================================== */
+.edit-hotzone { position: fixed; top: 0; left: 0; width: 80px; height: 80px; z-index: 10000; cursor: pointer; }
+.edit-toggle {
+  position: fixed; top: 1rem; left: 1rem; background: var(--accent); color: #fff;
+  border: none; border-radius: 999px; padding: .4em .9em;
+  font-family: var(--font-sans); font-size: .72rem; font-weight: 600; cursor: pointer;
+  z-index: 10001; opacity: 0; pointer-events: none; transition: opacity .3s;
+}
+.edit-toggle.show, .edit-toggle.active { opacity: 1; pointer-events: auto; }
+.edit-toggle.active { background: var(--accent-deep); }
+[contenteditable="true"] { outline: 2px dashed rgba(218,119,86,.5); outline-offset: 3px; border-radius: 3px; cursor: text; }
+.edit-bar {
+  display: none; position: fixed; bottom: 1.5rem; left: 50%; transform: translateX(-50%);
+  background: #141413; border: 1px solid rgba(218,119,86,.3); border-radius: 999px;
+  padding: .5em 1.2em; gap: 1em; align-items: center; z-index: 10002;
+  font-family: var(--font-sans); font-size: .7rem; color: var(--gray-mid); white-space: nowrap;
+}
+.edit-bar.visible { display: flex; }
+.edit-bar strong { color: var(--accent); }
+.edit-save-btn {
+  background: var(--accent); color: #fff; border: none; border-radius: 999px;
+  padding: .28em .75em; font-family: var(--font-sans); font-size: .68rem; font-weight: 600; cursor: pointer;
+}
+
+</style>
+</head>
+<body>
+
+<!-- ============ GLOBAL UI ============ -->
+<div class="progress-bar" id="progressBar"></div>
+<nav class="nav-dots" id="navDots" aria-label="Slide navigation"></nav>
+
+<!-- ============ EDIT UI ============ -->
+<div class="edit-hotzone" id="editHotzone"></div>
+<button class="edit-toggle" id="editToggle" title="Edit mode (E)">✏️ Edit</button>
+<div class="edit-bar" id="editBar">
+  Edit mode <strong>ON</strong> — click any text &nbsp;|&nbsp; <kbd>Ctrl+S</kbd> to save &nbsp;
+  <button class="edit-save-btn" id="editSaveBtn">💾 Download</button>
+</div>
+
+
+<!-- ============================================================
+     SLIDE 1 — TITLE
+     ============================================================ -->
+<section class="slide" id="slide-title" aria-label="Title">
+  <div class="glow glow-a"></div>
+  <div class="glow glow-b"></div>
+  <span class="c-label c-tl">Samsung Electronics</span>
+  <span class="c-label c-tr">Internal Guide · 2025</span>
+
+  <div class="left-col">
+    <div style="display:flex;flex-direction:column;gap:.3em;">
+      <div class="eyebrow reveal" style="font-size:clamp(0.72rem,1.1vw,0.92rem);"><div class="eyebrow-line"></div><span>EUREKA! Special Edition Vol.2</span></div>
+      <h1 class="title-hero reveal">Claude <em>101</em></h1>
+    </div>
+    <p class="title-sub reveal">
+      A practical guide to Anthropic's Claude AI assistant — covering capabilities, access methods, organizational tools, and role-specific applications for Samsung Electronics employees.
+    </p>
+    <div style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);" class="reveal">
+      <a href="https://claude.com/product/overview" target="_blank" class="link-btn">claude.ai</a>
+      <a href="https://claude.com/resources/courses" target="_blank" class="link-btn">Free Courses</a>
+    </div>
+  </div>
+  <div class="right-col">
+    <img src="claude-assets/slide1-hero.png" alt="Claude AI — Samsung Electronics internal guide hero image"
+         style="max-height:min(78vh,520px);max-width:100%;width:auto;object-fit:contain;display:block;"
+         class="reveal-scale">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 2 — TABLE OF CONTENTS (with hyperlinks to each section)
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-toc" aria-label="Contents">
+  <span class="c-label c-tl">Samsung Electronics</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Contents</h2>
+    <p class="slide-subtitle reveal">Click any section below to navigate directly to that part of the guide.</p>
+    <div class="toc-grid reveal-scale">
+
+      <a href="#slide-ch1" class="toc-item" onclick="slideTo('slide-ch1'); return false;">
+        <div class="toc-num">01</div>
+        <div class="toc-body">
+          <div class="toc-section">Meet Claude</div>
+          <div class="toc-slides">What is Claude · Access Methods · Desktop App<br>Chat · Cowork · Code</div>
+        </div>
+      </a>
+
+      <a href="#slide-ch2" class="toc-item" onclick="slideTo('slide-ch2'); return false;">
+        <div class="toc-num">02</div>
+        <div class="toc-body">
+          <div class="toc-section">Organize Work &amp; Knowledge</div>
+          <div class="toc-slides">Working with Skills · Claude Projects<br>Creating with Artifacts</div>
+        </div>
+      </a>
+
+      <a href="#slide-ch3" class="toc-item" onclick="slideTo('slide-ch3'); return false;">
+        <div class="toc-num">03</div>
+        <div class="toc-body">
+          <div class="toc-section">Expanding Claude's Reach</div>
+          <div class="toc-slides">Connecting Tools with Claude<br>MCP &amp; Connectors</div>
+        </div>
+      </a>
+
+      <a href="#slide-ch4" class="toc-item" onclick="slideTo('slide-ch4'); return false;">
+        <div class="toc-num">04</div>
+        <div class="toc-body">
+          <div class="toc-section">Claude Use Cases</div>
+          <div class="toc-slides">Practical examples by department<br>Engineering · Marketing · HR · Finance · Legal</div>
+        </div>
+      </a>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 3 — CHAPTER 1: MEET CLAUDE
+     ============================================================ -->
+<section class="slide slide-chapter" id="slide-ch1" aria-label="Chapter 1">
+  <div class="ch-bg-num" aria-hidden="true">01</div>
+  <div class="chapter-inner">
+    <span class="ch-tag reveal">Chapter 1</span>
+    <h2 class="ch-title reveal">Meet Claude</h2>
+    <hr class="accent-rule reveal">
+    <p class="ch-desc reveal">Claude's capabilities, how to access it across platforms, and how the Desktop App's three modes — Chat, Cowork, and Code — are designed for different work contexts.</p>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 4 — WHAT IS CLAUDE?
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-what" aria-label="What is Claude?">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="slide-content" style="justify-content:flex-start;padding-top:clamp(3rem,7vh,5.5rem);">
+
+    <!-- TOP: TITLE -->
+    <div class="reveal" style="margin-bottom:clamp(.6rem,1.4vh,1.2rem);">
+      <h2 class="slide-main-title" style="margin-bottom:.25em;">What is Claude?</h2>
+      <p class="slide-subtitle">Anthropic's AI — built for enterprise writing, research, coding, and autonomous task execution.</p>
+    </div>
+
+    <!-- BODY: LEFT (text) + RIGHT (2×2 charts) -->
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.8rem,2vw,1.6rem);flex:1;min-height:0;align-items:start;" class="reveal">
+
+      <!-- ── LEFT COLUMN ── -->
+      <div style="display:flex;flex-direction:column;gap:clamp(.5rem,1.2vh,.9rem);">
+
+        <!-- Capability chips -->
+        <div style="display:flex;flex-wrap:wrap;gap:.35em;">
+          <span style="background:rgba(218,119,86,.12);border:1px solid rgba(218,119,86,.3);border-radius:999px;padding:.18em .8em;font-family:var(--font-sans);font-size:var(--label);color:var(--text-light);font-weight:600;">✍️ Writing &amp; Research</span>
+          <span style="background:rgba(218,119,86,.12);border:1px solid rgba(218,119,86,.3);border-radius:999px;padding:.18em .8em;font-family:var(--font-sans);font-size:var(--label);color:var(--text-light);font-weight:600;">💻 Coding</span>
+          <span style="background:rgba(218,119,86,.12);border:1px solid rgba(218,119,86,.3);border-radius:999px;padding:.18em .8em;font-family:var(--font-sans);font-size:var(--label);color:var(--text-light);font-weight:600;">🧠 Extended Thinking</span>
+          <span style="background:rgba(218,119,86,.12);border:1px solid rgba(218,119,86,.3);border-radius:999px;padding:.18em .8em;font-family:var(--font-sans);font-size:var(--label);color:var(--text-light);font-weight:600;">📂 200K Context</span>
+          <span style="background:rgba(218,119,86,.12);border:1px solid rgba(218,119,86,.3);border-radius:999px;padding:.18em .8em;font-family:var(--font-sans);font-size:var(--label);color:var(--text-light);font-weight:600;">🔗 MCP</span>
+        </div>
+
+        <!-- Where Claude leads -->
+        <div style="background:rgba(218,119,86,.07);border:1px solid rgba(218,119,86,.22);border-radius:10px;padding:.65em 1em;">
+          <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.07em;text-transform:uppercase;margin-bottom:.5em;">Where Claude leads</div>
+          <div style="display:flex;flex-direction:column;gap:.55em;font-family:var(--font-sans);">
+            <div style="border-left:2px solid rgba(218,119,86,.5);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:var(--text-light);margin-bottom:.18em;">Coding — SWE-Bench Verified #1 <span style="font-weight:400;color:rgba(218,119,86,.7);">78.7%</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.7);line-height:1.55;">Real-world GitHub issue resolution. Ahead of GPT-5 (76.9%) and Gemini 3.1 Pro (75.6%) on actual repository tasks — not synthetic problems.</div>
+            </div>
+            <div style="border-left:2px solid rgba(218,119,86,.5);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:var(--text-light);margin-bottom:.18em;">Agentic execution — OSWorld #1 <span style="font-weight:400;color:rgba(218,119,86,.7);">72.5%</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.7);line-height:1.55;">Computer-use tasks across real desktop/web environments. Claude Sonnet 4.6 leads the OSWorld-Verified leaderboard, above the 72.4% human expert baseline.</div>
+            </div>
+            <div style="border-left:2px solid rgba(218,119,86,.5);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:var(--text-light);margin-bottom:.18em;">Long-context faithfulness <span style="font-weight:400;color:rgba(218,119,86,.7);">&lt;5% degradation</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.7);line-height:1.55;">Maintains &lt;5% accuracy loss across the full 200K token window (Chroma Context Rot study). Reliable recall across 500-page documents without drift.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Where others lead -->
+        <div style="background:rgba(250,249,245,.03);border:1px solid rgba(250,249,245,.1);border-radius:10px;padding:.65em 1em;">
+          <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--gray-mid);letter-spacing:.07em;text-transform:uppercase;margin-bottom:.5em;">Where others have an edge</div>
+          <div style="display:flex;flex-direction:column;gap:.55em;font-family:var(--font-sans);">
+            <div style="border-left:2px solid rgba(176,174,165,.25);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:rgba(250,249,245,.75);margin-bottom:.18em;">Reasoning — Gemini 3.1 Pro <span style="font-weight:400;color:rgba(176,174,165,.5);">GPQA 94.1%</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.5);line-height:1.55;">Leads GPQA Diamond (PhD-level science) at 94.1% vs Claude's 90.5% and GPT-5's 91.4%. Top score across all independent leaderboards (lmcouncil.ai, Apr 2026).</div>
+            </div>
+            <div style="border-left:2px solid rgba(176,174,165,.25);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:rgba(250,249,245,.75);margin-bottom:.18em;">Long context window — Gemini <span style="font-weight:400;color:rgba(176,174,165,.5);">1M+ tokens</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.5);line-height:1.55;">Gemini 3.1 Pro supports a 1M+ token window (vs Claude's 200K). Demonstrates 99.7% NIAH recall at 1M tokens — suited for entire codebases or legal libraries.</div>
+            </div>
+            <div style="border-left:2px solid rgba(176,174,165,.25);padding-left:.7em;">
+              <div style="font-size:var(--small);font-weight:700;color:rgba(250,249,245,.75);margin-bottom:.18em;">Multimodal — GPT-5 <span style="font-weight:400;color:rgba(176,174,165,.5);">MMMU 85.4%</span></div>
+              <div style="font-size:calc(var(--small)*.92);color:rgba(250,249,245,.5);line-height:1.55;">GPT-5 leads MMMU at 85.4% vs Claude's 80.7%. Gemini additionally supports native video and audio input — Claude handles images and documents only.</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Axis legend -->
+        <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:rgba(176,174,165,.5);line-height:1.6;border-top:1px solid rgba(250,249,245,.07);padding-top:.5em;">
+          Axes → ① Reasoning &nbsp;② Long Context &nbsp;③ Coding &nbsp;④ Agentic Features &nbsp;⑤ Multimodal<br>
+          <span style="color:rgba(176,174,165,.35);">Source: GPQA Diamond · SWE-Bench Verified · OSWorld · MMMU · MRCR v2 — lmcouncil.ai, o-mega.ai, research.trychroma.com (2026 Q1)</span>
+        </div>
+
+      </div><!-- /LEFT -->
+
+      <!-- ── RIGHT COLUMN: 2×2 radar charts ── -->
+      <div style="display:grid;grid-template-columns:1fr 1fr;grid-template-rows:1fr 1fr;gap:clamp(.4rem,.9vw,.7rem);height:100%;max-height:min(72vh,520px);">
+
+        <!-- Claude -->
+        <div style="background:rgba(218,119,86,.08);border:1.5px solid rgba(218,119,86,.32);border-radius:12px;padding:clamp(.4rem,.9vw,.7rem);display:flex;flex-direction:column;align-items:center;gap:.25em;min-height:0;">
+          <div style="font-family:var(--font-sans);font-size:var(--small);font-weight:700;color:#da7756;letter-spacing:.05em;">Claude</div>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.85);color:rgba(218,119,86,.55);">Anthropic · Opus 4.6</div>
+          <canvas id="rc-claude" style="width:100%;flex:1;min-height:0;display:block;max-height:min(26vh,180px);"></canvas>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.88);color:rgba(218,119,86,.75);text-align:center;line-height:1.3;">↑ Coding 78.7% · Agentic 72.5%<br><span style="color:rgba(176,174,165,.5);">↓ Multimodal 80.7%</span></div>
+        </div>
+
+        <!-- ChatGPT -->
+        <div style="background:rgba(16,163,127,.06);border:1.5px solid rgba(16,163,127,.25);border-radius:12px;padding:clamp(.4rem,.9vw,.7rem);display:flex;flex-direction:column;align-items:center;gap:.25em;min-height:0;">
+          <div style="font-family:var(--font-sans);font-size:var(--small);font-weight:700;color:#10a37f;letter-spacing:.05em;">ChatGPT</div>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.85);color:rgba(16,163,127,.55);">OpenAI · GPT-5</div>
+          <canvas id="rc-chatgpt" style="width:100%;flex:1;min-height:0;display:block;max-height:min(26vh,180px);"></canvas>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.88);color:rgba(16,163,127,.75);text-align:center;line-height:1.3;">↑ Multimodal 85.4% · GPQA 91.4%<br><span style="color:rgba(176,174,165,.5);">↓ Long Context 128K</span></div>
+        </div>
+
+        <!-- Gemini -->
+        <div style="background:rgba(66,133,244,.06);border:1.5px solid rgba(66,133,244,.25);border-radius:12px;padding:clamp(.4rem,.9vw,.7rem);display:flex;flex-direction:column;align-items:center;gap:.25em;min-height:0;">
+          <div style="font-family:var(--font-sans);font-size:var(--small);font-weight:700;color:#4285f4;letter-spacing:.05em;">Gemini</div>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.85);color:rgba(66,133,244,.55);">Google · Gemini 3.1 Pro</div>
+          <canvas id="rc-gemini" style="width:100%;flex:1;min-height:0;display:block;max-height:min(26vh,180px);"></canvas>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.88);color:rgba(66,133,244,.75);text-align:center;line-height:1.3;">↑ GPQA 94.1% · Context 1M+<br><span style="color:rgba(176,174,165,.5);">↓ Coding 75.6%</span></div>
+        </div>
+
+        <!-- Perplexity -->
+        <div style="background:rgba(167,139,204,.06);border:1.5px solid rgba(167,139,204,.25);border-radius:12px;padding:clamp(.4rem,.9vw,.7rem);display:flex;flex-direction:column;align-items:center;gap:.25em;min-height:0;">
+          <div style="font-family:var(--font-sans);font-size:var(--small);font-weight:700;color:#a78bcc;letter-spacing:.05em;">Perplexity</div>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.85);color:rgba(167,139,204,.55);">Perplexity AI · Sonar</div>
+          <canvas id="rc-perplexity" style="width:100%;flex:1;min-height:0;display:block;max-height:min(26vh,180px);"></canvas>
+          <div style="font-family:var(--font-sans);font-size:calc(var(--label)*.88);color:rgba(167,139,204,.75);text-align:center;line-height:1.3;">↑ Real-time search<br><span style="color:rgba(176,174,165,.5);">↓ Not std. LLM benchmarked</span></div>
+        </div>
+
+      </div><!-- /RIGHT 2×2 -->
+
+    </div><!-- /BODY grid -->
+
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 5 — WAYS TO ACCESS CLAUDE
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-access" aria-label="Ways to Access Claude">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Ways to Access Claude</h2>
+    <p class="slide-subtitle reveal">Claude is available across five platforms — each designed for a specific work environment. The same AI intelligence is accessible whether you are in a browser, a spreadsheet, a code editor, or a messaging app.</p>
+    <div class="reveal-scale">
+      <table class="data-table">
+        <thead>
+          <tr>
+            <th>Tool</th>
+            <th>Best For</th>
+            <th>Where It Runs</th>
+            <th>Access</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>Claude.ai</strong></td>
+            <td>General tasks, research, writing, analysis, file creation</td>
+            <td>Web, Desktop App, Mobile App</td>
+            <td><a href="https://claude.com/product/overview" target="_blank">claude.ai ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Claude Code</strong></td>
+            <td>Software development, codebase navigation, git workflows</td>
+            <td>Terminal / IDE / Browser</td>
+            <td><a href="https://claude.com/product/claude-code" target="_blank">Learn more ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Claude in Slack</strong></td>
+            <td>Team collaboration, meeting prep, quick answers in context</td>
+            <td>Slack workspace (all channels)</td>
+            <td><a href="https://claude.com/claude-for-slack" target="_blank">Learn more ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Claude for Excel</strong></td>
+            <td>Spreadsheet analysis, financial modeling, formula debugging</td>
+            <td>Microsoft Excel sidebar</td>
+            <td><a href="https://claude.com/claude-for-excel" target="_blank">Learn more ↗</a></td>
+          </tr>
+          <tr>
+            <td><strong>Claude for Chrome</strong></td>
+            <td>Web research, email management, browser automation</td>
+            <td>Chrome browser sidebar</td>
+            <td><a href="https://claude.com/claude-for-chrome" target="_blank">Learn more ↗</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 6 — CLAUDE DESKTOP APP OVERVIEW
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-desktop" aria-label="Claude Desktop App">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Claude Desktop App</h2>
+    <p class="slide-subtitle reveal">A native application for Windows and macOS that consolidates three distinct work modes in one place — Chat for quick conversation, Cowork for complex multi-step tasks, and Code for software development. Unlike the web browser version, the Desktop App integrates directly with local files, system tools, and development environments on your machine.</p>
+    <div class="mode-cards reveal-scale">
+
+      <div class="mode-card chat-card">
+        <div class="mode-label">Chat</div>
+        <div class="mode-title">Conversational Assistant</div>
+        <div class="mode-desc">Same Claude experience as claude.ai — optimized for quick exchanges, iterative drafting, and back-and-forth Q&amp;A.</div>
+        <ul class="mode-feats">
+          <li>Paste screenshots to ask about screen content</li>
+          <li>Attach files and documents for immediate analysis</li>
+          <li>Connect external tools (Google Drive, Notion, etc.)</li>
+        </ul>
+      </div>
+
+      <div class="mode-card cowork-card">
+        <div class="mode-label">Cowork</div>
+        <div class="mode-title">Long-Horizon Work Agent</div>
+        <div class="mode-desc">For complex, sustained tasks that require pulling from multiple sources and producing finished deliverables. Claude works independently and reports progress.</div>
+        <ul class="mode-feats">
+          <li>Access and process entire local folders</li>
+          <li>Run parallel sub-tasks simultaneously</li>
+          <li>Schedule recurring automated tasks</li>
+        </ul>
+      </div>
+
+      <div class="mode-card code-card">
+        <div class="mode-label">Code</div>
+        <div class="mode-title">Software Development Agent</div>
+        <div class="mode-desc">An agentic coding tool that works directly inside your codebase — reading, writing, and executing code via natural language instructions.</div>
+        <ul class="mode-feats">
+          <li>Ask / Code / Plan interaction modes</li>
+          <li>Visual diffs and git integration</li>
+          <li>Local or remote (GitHub) environments</li>
+        </ul>
+      </div>
+
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 7 — CLAUDE CHAT
+     ============================================================ -->
+<section class="slide split-slide" id="slide-chat" aria-label="Claude Chat">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="split-left">
+    <h2 class="slide-main-title reveal-left">Claude Chat</h2>
+    <p class="slide-subtitle reveal-left">Conversational AI for everyday tasks — accessible via browser at claude.ai or through the Claude Desktop App on Windows.</p>
+    <ul class="b-list">
+      <li class="reveal-left"><strong>Ask and iterate:</strong> Type any question, request, or task. Claude responds in natural language and handles multi-turn follow-ups and revisions in the same session.</li>
+      <li class="reveal-left"><strong>File upload and analysis:</strong> Attach documents, spreadsheets, images, and PDFs directly into the chat. Claude reads and references file content in its responses — up to 200K tokens (~500 pages) per session.</li>
+      <li class="reveal-left"><strong>Screenshot analysis:</strong> Use Windows Snipping Tool (<kbd style="background:rgba(218,119,86,.15);border:1px solid rgba(218,119,86,.3);padding:.1em .4em;border-radius:3px;font-size:.85em;">Win+Shift+S</kbd>), capture your screen, paste into Claude, and ask it to interpret dashboards, error messages, or UI layouts.</li>
+      <li class="reveal-left"><strong>Connectors:</strong> Link Claude to cloud services (Google Drive, Notion, Slack) so it can pull relevant context from your connected tools into the conversation.</li>
+    </ul>
+    <div class="reveal-left" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);">
+      <a href="https://anthropic.skilljar.com/claude-101" target="_blank" class="link-btn">Claude 101 Course</a>
+    </div>
+  </div>
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/chat-slide.png" alt="Claude Desktop App Chat interface showing the main input field with Code, Write, Create, Learn, and From Drive quick actions" class="reveal-scale" style="max-height:min(78vh,560px);max-width:100%;width:auto;object-fit:contain;border-radius:8px;">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 8 — CLAUDE COWORK
+     ============================================================ -->
+<section class="slide split-slide" id="slide-cowork" aria-label="Claude Cowork">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="split-left">
+    <h2 class="slide-main-title reveal-left">Claude Cowork</h2>
+    <p class="slide-subtitle reveal-left">An agentic work mode for complex, sustained tasks — research, cross-source analysis, and producing finished documents — where Claude works independently across multiple data sources simultaneously.</p>
+    <ul class="b-list">
+      <li class="reveal-left"><strong>Folder access:</strong> Give Claude a folder; it reads what's relevant, executes tasks, and saves output back to the same location.</li>
+      <li class="reveal-left"><strong>Subagents &amp; multitasking:</strong> Claude breaks large tasks into parallel sub-tasks — multiple research threads running simultaneously.</li>
+      <li class="reveal-left"><strong>Scheduled tasks:</strong> Automate recurring work (daily briefings, weekly roundups, inbox triage) on a defined schedule.</li>
+      <li class="reveal-left"><strong>Browser use:</strong> When connected to Chrome, Claude navigates websites, reads pages, and incorporates findings into the task.</li>
+      <li class="reveal-left"><strong>Plugins:</strong> Extend Cowork's capabilities with live financial data, internal knowledge bases, or compliance frameworks.</li>
+    </ul>
+    <div class="reveal-left" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);">
+      <a href="https://claude.com/product/cowork" target="_blank" class="link-btn">Learn about Cowork</a>
+    </div>
+  </div>
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/cowork-slide.jpeg" alt="Claude Cowork interface showing active tasks including 'Triage legal NDA documents' and 'Customize bio-research plugin'" class="reveal-scale" style="max-height:min(82vh,590px);max-width:100%;width:auto;object-fit:contain;border-radius:8px;">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 9 — CLAUDE CODE
+     ============================================================ -->
+<section class="slide split-slide" id="slide-code" aria-label="Claude Code">
+  <span class="c-label c-tl">01 / Meet Claude</span>
+  <div class="split-left">
+    <h2 class="slide-main-title reveal-left">Claude Code</h2>
+    <p class="slide-subtitle reveal-left">An agentic coding tool that works directly inside your codebase — reading, writing, and executing code through natural language instructions. Not a suggestion engine; it makes real file changes and runs real commands.</p>
+    <ul class="b-list">
+      <li class="reveal-left"><strong>Three interaction modes:</strong> <em>Ask</em> (propose every change for approval), <em>Code</em> (auto-apply file changes, confirm terminal commands), <em>Plan</em> (outline full approach before touching anything).</li>
+      <li class="reveal-left"><strong>Local or remote:</strong> Work directly in local folders, or connect a GitHub repository for cloud-based sessions that continue even when the app is closed.</li>
+      <li class="reveal-left"><strong>Visual diffs &amp; git integration:</strong> Every change is tracked. Review diffs, accept or reject, and roll back at any point.</li>
+      <li class="reveal-left"><strong>Runs in your environment:</strong> Terminal, VS Code, JetBrains, or browser-based. Claude reads, writes, and executes commands within your project.</li>
+    </ul>
+    <div class="reveal-left" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);">
+      <a href="https://claude.com/resources/courses" target="_blank" class="link-btn">Claude Code Course</a>
+    </div>
+  </div>
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/code-slide.jpeg" alt="Claude Code interface showing repository selection and suggested tasks including 'Create or update my CLAUDE.md file' and 'Search for a TODO comment and fix it'" class="reveal-scale" style="max-height:min(82vh,590px);max-width:100%;width:auto;object-fit:contain;border-radius:8px;">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 10 — CHAPTER 2: ORGANIZE WORK
+     ============================================================ -->
+<section class="slide slide-chapter" id="slide-ch2" aria-label="Chapter 2">
+  <div class="ch-bg-num" aria-hidden="true">02</div>
+  <div class="chapter-inner">
+    <span class="ch-tag reveal">Chapter 2</span>
+    <h2 class="ch-title reveal">Ways to Organize<br>Work &amp; Knowledge</h2>
+    <hr class="accent-rule reveal">
+    <p class="ch-desc reveal">Skills define repeatable workflows. Projects store persistent knowledge. Artifacts are the structured outputs Claude generates — each serving a distinct function in a professional workflow.</p>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 11 — WORKING WITH SKILLS
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-skills" aria-label="Working with Skills">
+  <span class="c-label c-tl">02 / Organize</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Working with Skills</h2>
+    <p class="slide-subtitle reveal">Reusable instruction packages that teach Claude how to execute your specific workflows — so you get consistent, on-standard output every time without re-explaining the process from scratch.</p>
+    <p class="slide-lead reveal" style="max-width:760px;"><strong>What you can do with Skills:</strong> Automate monthly status report generation in your team's exact format. Ensure every presentation follows Samsung brand and visual standards. Structure meeting notes consistently across all participants. Generate legally compliant documents from templates — all triggered with a single command.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-sm);">
+      <div class="info-card reveal">
+        <div class="card-title">🔧 Anthropic Skills (Built-in)</div>
+        <div class="card-body">Pre-built by Anthropic. Covers enhanced document creation for Excel, Word, PowerPoint, and PDF. Available to all paid users — Claude invokes them automatically when you request a relevant file type. No setup required.</div>
+      </div>
+      <div class="info-card reveal">
+        <div class="card-title">🏗️ Custom Skills (Organization-built)</div>
+        <div class="card-body">Built by you or your team for specialized workflows — e.g., applying Samsung brand guidelines to decks, structuring weekly reports, or running a standard data analysis process. Created via conversation with Claude; no coding needed.</div>
+      </div>
+    </div>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);">
+      <a href="https://claude.com/resources/courses" target="_blank" class="link-btn">Explore Skills</a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 12 — CLAUDE PROJECTS
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-projects" aria-label="Claude Projects">
+  <span class="c-label c-tl">02 / Organize</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Claude Projects</h2>
+    <p class="slide-subtitle reveal">Persistent workspaces where Claude retains your uploaded documents, instructions, and conversation history — so it always has the context it needs without you re-uploading files each session.</p>
+    <p class="slide-lead reveal" style="max-width:760px;"><strong>What you can do with Projects:</strong> A product manager uploads all Q4 specs, meeting notes, and competitive analysis once — then asks Claude questions across all of them at any time. An engineering team keeps technical docs in a shared project so Claude always understands the full codebase context. A legal team stores all contract templates and precedents so Claude drafts consistently to standard.</p>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:var(--gap-sm);">
+      <div style="display:flex;flex-direction:column;gap:var(--gap-sm);">
+        <div class="info-card reveal">
+          <div class="card-title">📂 Project Knowledge</div>
+          <div class="card-body">Upload PDFs, DOCX, CSV, HTML, and more. Claude references these across all conversations in the project — eliminating repeated file uploads. Name files descriptively; Claude uses filenames to retrieve relevant content.</div>
+        </div>
+        <div class="info-card reveal">
+          <div class="card-title">📋 Project Instructions</div>
+          <div class="card-body">Define tone, expertise level, response format, and task-specific requirements. Instructions apply to every conversation in the project — ensuring consistent output style across team members.</div>
+        </div>
+      </div>
+      <div style="display:flex;flex-direction:column;gap:var(--gap-sm);">
+        <div class="info-card reveal">
+          <div class="card-title">📈 Automatic Scaling (RAG)</div>
+          <div class="card-body">When knowledge base approaches the context window limit, Claude automatically enables Retrieval Augmented Generation (RAG) — expanding capacity by up to 10× while maintaining response quality.</div>
+        </div>
+        <div class="info-card reveal">
+          <div class="card-title">👥 Team Collaboration (Team/Enterprise)</div>
+          <div class="card-body">Three permission levels: <strong>View</strong> (read-only + chat), <strong>Edit</strong> (modify instructions, knowledge, members), <strong>Owner</strong> (full control + visibility settings). Share to individuals or entire organization.</div>
+        </div>
+      </div>
+    </div>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);">
+      <a href="https://anthropic.skilljar.com/introduction-to-claude-cowork" target="_blank" class="link-btn">Cowork Course</a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 13 — SKILLS vs. PROJECTS
+     ============================================================ -->
+<section class="slide split-slide" id="slide-svp" aria-label="Skills vs. Projects">
+  <span class="c-label c-tl">02 / Organize</span>
+  <div class="split-left">
+    <h2 class="slide-main-title reveal-left">Skills vs. Projects</h2>
+    <p class="slide-subtitle reveal-left">Two features that look similar but serve different purposes — one stores knowledge, the other encodes process.</p>
+    <p class="slide-lead reveal-left">
+      <strong>Projects store knowledge</strong> — reference materials Claude draws on across conversations.<br><br>
+      <strong>Skills perform tasks</strong> — repeatable procedures Claude executes consistently.<br><br>
+      The two complement each other: a Skill can reference knowledge stored in a Project.
+    </p>
+  </div>
+  <div class="split-right">
+    <div class="svp-grid reveal-scale">
+      <div class="svp-col">
+        <div class="svp-head">📁 Projects</div>
+        <div class="svp-row"><div class="svp-label">Purpose</div><div class="svp-val">Store knowledge Claude references across conversations</div></div>
+        <div class="svp-row"><div class="svp-label">Best for</div><div class="svp-val">Long-term context, reference materials, team collaboration</div></div>
+        <div class="svp-row"><div class="svp-label">Persistence</div><div class="svp-val">Knowledge available in all chats within the project</div></div>
+        <div class="svp-row"><div class="svp-label">Example</div><div class="svp-val">Customer account hub, Q4 product launch, research library</div></div>
+      </div>
+      <div class="svp-col accent-col">
+        <div class="svp-head">⚡ Skills</div>
+        <div class="svp-row"><div class="svp-label">Purpose</div><div class="svp-val">Define processes Claude executes step-by-step</div></div>
+        <div class="svp-row"><div class="svp-label">Best for</div><div class="svp-val">Repeatable workflows, multi-step tasks, consistent methodology</div></div>
+        <div class="svp-row"><div class="svp-label">Persistence</div><div class="svp-val">Instructions applied every time the skill is invoked</div></div>
+        <div class="svp-row"><div class="svp-label">Example</div><div class="svp-val">Brand guidelines, blog drafting, PDF creation, status reports</div></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 14 — CREATING WITH ARTIFACTS
+     ============================================================ -->
+<section class="slide split-slide" id="slide-artifacts" aria-label="Creating with Artifacts">
+  <span class="c-label c-tl">02 / Organize</span>
+  <div class="split-left">
+    <h2 class="slide-main-title reveal-left">Creating with Artifacts</h2>
+    <p class="slide-subtitle reveal-left">Standalone, interactive outputs that Claude generates in a dedicated side panel — rendered live so you can preview, edit, download, or share immediately without switching applications.</p>
+    <p class="slide-lead reveal-left"><strong>What you can do:</strong> Request a working Excel formula or Python script and download it directly. Get a fully formatted report template ready for immediate use. Build an interactive expense tracker or data dashboard. Generate a process flowchart from a text description. Share any artifact with colleagues via a single link — no Claude account required to view.</p>
+    <ul class="b-list">
+      <li class="reveal-left"><strong>Documents:</strong> Markdown and plain text for reports, project plans, blog posts — immediately downloadable.</li>
+      <li class="reveal-left"><strong>Code snippets:</strong> Working code in Python, JavaScript, C++, and more — copy or download for direct use.</li>
+      <li class="reveal-left"><strong>HTML pages:</strong> Complete web pages (HTML + CSS + JS) for landing pages, prototypes, and interactive demos.</li>
+      <li class="reveal-left"><strong>Diagrams:</strong> Mermaid-based flowcharts, sequence diagrams, Gantt charts, and org charts.</li>
+      <li class="reveal-left"><strong>React components:</strong> Interactive UI elements with real logic — calculators, dashboards, data visualizations.</li>
+    </ul>
+    <p class="reveal-left" style="font-family:var(--font-sans);font-size:var(--label);color:var(--gray-mid);margin-top:.3em;">
+      Artifacts can be shared internally (Team/Enterprise) or published publicly as a shareable link. Others can "remix" public artifacts into their own Claude session.
+    </p>
+  </div>
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/files-ui.jpeg" alt="Claude file types panel showing how Claude can turn analyses into spreadsheets, reports, presentations, and documents" class="screenshot reveal-scale">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 15 — CHAPTER 3: EXPANDING REACH
+     ============================================================ -->
+<section class="slide slide-chapter" id="slide-ch3" aria-label="Chapter 3">
+  <div class="ch-bg-num" aria-hidden="true">03</div>
+  <div class="chapter-inner">
+    <span class="ch-tag reveal">Chapter 3</span>
+    <h2 class="ch-title reveal">Expanding<br>Claude's Reach</h2>
+    <hr class="accent-rule reveal">
+    <p class="ch-desc reveal">Connectors and the Model Context Protocol (MCP) allow Claude to read, retrieve, and act on data from the tools your team uses daily — without leaving the Claude interface.</p>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 16 — CONNECTING TOOLS WITH CLAUDE
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-connect" aria-label="Connecting Tools with Claude">
+  <span class="c-label c-tl">03 / Expand</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Connecting Tools with Claude</h2>
+    <p class="slide-subtitle reveal">Model Context Protocol (MCP) — an open standard that allows Claude to connect to external tools, databases, and APIs. Think of it as a universal adapter (like USB-C) that lets Claude work directly inside the platforms your team already uses.</p>
+    <p class="slide-lead reveal" style="max-width:680px;">
+      MCP is an <strong>open standard</strong> (analogous to USB-C for AI) that allows Claude to connect to external tools, databases, and APIs through a single consistent interface. Two connector types: <strong>Web connectors</strong> (cloud services) and <strong>Desktop extensions</strong> (local tools via the Desktop app).
+    </p>
+    <div class="connector-grid reveal-scale">
+      <div class="connector-chip"><div class="chip-icon">💬</div><div><div class="chip-label">Slack</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">📧</div><div><div class="chip-label">Gmail</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">🗂️</div><div><div class="chip-label">Notion</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">📋</div><div><div class="chip-label">Asana / Jira</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">🐙</div><div><div class="chip-label">GitHub</div><div class="chip-type">Web + Desktop</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">📊</div><div><div class="chip-label">Google Drive</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">💰</div><div><div class="chip-label">Stripe / Salesforce</div><div class="chip-type">Web connector</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">🗄️</div><div><div class="chip-label">Local Files</div><div class="chip-type">Desktop extension</div></div></div>
+      <div class="connector-chip"><div class="chip-icon">🌐</div><div><div class="chip-label">Browser Control</div><div class="chip-type">Desktop extension</div></div></div>
+    </div>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);margin-top:.2rem;">
+      <a href="https://claude.com/connectors" target="_blank" class="link-btn">Connectors</a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 17 — CHAPTER 4: USE CASES
+     ============================================================ -->
+<section class="slide slide-chapter" id="slide-ch4" aria-label="Chapter 4">
+  <div class="ch-bg-num" aria-hidden="true">04</div>
+  <div class="chapter-inner">
+    <span class="ch-tag reveal">Chapter 4</span>
+    <h2 class="ch-title reveal">Claude Use Cases</h2>
+    <hr class="accent-rule reveal">
+    <p class="ch-desc reveal">Practical examples of how Samsung Electronics employees across departments — engineering, marketing, HR, finance, legal, and research — can apply Claude in daily work.</p>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 18 — USE CASES BY ROLE
+     ============================================================ -->
+<section class="slide dark-slide" id="slide-usecases" aria-label="Use Cases by Role">
+  <span class="c-label c-tl">04 / Use Cases</span>
+  <div class="slide-content">
+    <h2 class="slide-main-title reveal">Use Cases by Role</h2>
+    <p class="slide-subtitle reveal">Practical examples of how Samsung Electronics employees across departments can apply Claude in daily work — each example is executable today with a standard Claude account.</p>
+    <div class="role-grid reveal-scale">
+      <div class="role-card">
+        <div class="role-icon">🔧</div>
+        <div class="role-name">Engineering &amp; R&amp;D</div>
+        <ul class="role-tasks">
+          <li>Write, debug, and refactor code across languages</li>
+          <li>Navigate unfamiliar codebases and document architecture</li>
+          <li>Automate lint fixes, merge conflicts, and release notes</li>
+        </ul>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">📣</div>
+        <div class="role-name">Marketing</div>
+        <ul class="role-tasks">
+          <li>Analyze campaign performance and extract insights</li>
+          <li>Adapt content across platforms and audience segments</li>
+          <li>Build competitive battle card libraries</li>
+        </ul>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">👔</div>
+        <div class="role-name">HR &amp; People</div>
+        <ul class="role-tasks">
+          <li>Draft new hire onboarding guides by role</li>
+          <li>Generate job descriptions from team charters</li>
+          <li>Synthesize employee feedback into actionable themes</li>
+        </ul>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">💰</div>
+        <div class="role-name">Finance</div>
+        <ul class="role-tasks">
+          <li>Build and refine financial models with scenario analysis</li>
+          <li>Draft investment memos and board-ready summaries</li>
+          <li>Decode inherited spreadsheets and extend formulas</li>
+        </ul>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">⚖️</div>
+        <div class="role-name">Legal</div>
+        <ul class="role-tasks">
+          <li>Track discovery timelines across large document sets</li>
+          <li>Identify patterns and inconsistencies in contracts</li>
+          <li>Summarize lengthy regulatory documents</li>
+        </ul>
+      </div>
+      <div class="role-card">
+        <div class="role-icon">🔬</div>
+        <div class="role-name">Research</div>
+        <ul class="role-tasks">
+          <li>Plan and structure systematic literature reviews</li>
+          <li>Verify statistics and validate calculations from raw data</li>
+          <li>Synthesize findings across multiple research sources</li>
+        </ul>
+      </div>
+    </div>
+    <div class="reveal" style="display:flex;flex-wrap:wrap;gap:var(--gap-sm);margin-top:.2rem;">
+      <a href="https://claude.com/resources/use-cases" target="_blank" class="link-btn">Full Use Case Gallery</a>
+    </div>
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 19 — USE CASE: COMPARE PRODUCTS ACROSS SITES
+     ============================================================ -->
+<section class="slide split-slide" id="slide-uc1" aria-label="Compare Products Across Sites">
+  <span class="c-label c-tl">04 / Use Cases</span>
+  <div class="split-left" style="gap:var(--gap-sm);">
+    <div>
+      <div class="eyebrow reveal-left" style="margin-bottom:.5em;"><div class="eyebrow-line"></div><span>Case 01</span></div>
+      <h2 class="slide-main-title reveal-left">Compare Products<br>Across Sites</h2>
+      <p class="slide-subtitle reveal-left">Claude in Chrome automatically navigates multiple product tabs, extracts specifications, normalizes inconsistent labels, and consolidates everything into a side-by-side comparison document.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.4rem,.9vw,.75rem);">
+
+      <div style="background:rgba(218,119,86,.08);border:1px solid rgba(218,119,86,.22);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Overview</div>
+        <div style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.78);line-height:1.5;">Tell Claude which products to compare and which specs matter most. Open each product page in separate browser tabs — Claude navigates between them, extracts the data, and builds a normalized Google Docs comparison table.</div>
+      </div>
+
+      <div style="background:rgba(250,249,245,.04);border:1px solid rgba(250,249,245,.1);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Outcomes</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:.3em;">
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>No manual tab-switching or copy-paste</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Inconsistent labels auto-normalized</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Category winner identified per spec</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Reviews &amp; pricing added on follow-up</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div style="background:rgba(250,249,245,.03);border:1px solid rgba(250,249,245,.08);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+      <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6em;">How It Works</div>
+      <div style="display:flex;flex-direction:column;gap:.5em;">
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">1</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Open each product page in a separate Chrome tab</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">No special setup — just browse to the product pages you want to compare (e.g. laptop specs, SaaS pricing, supplier catalogs) and keep each in its own tab.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">2</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Tell Claude what you need in the Chrome sidebar</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">"Compare these 4 laptops on processor, RAM, battery life, weight, and price — show which wins each category."</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">3</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Claude reads each tab and normalizes the data</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Automatically visits each product page, extracts specs, and maps inconsistent labels (e.g. "Memory" vs "RAM") to a unified schema — no copy-paste needed.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">4</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Review the Google Docs table &amp; ask follow-ups</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">A formatted comparison table is created with category winners highlighted. Ask: "Add review scores" or "Which is the best value under $1,500?"</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal-left" style="display:flex;gap:var(--gap-sm);align-items:center;">
+      <a href="https://claude.com/resources/use-cases/compare-products-across-sites" target="_blank" class="link-btn">View Full Use Case</a>
+      <span style="font-family:var(--font-sans);font-size:var(--label);color:rgba(218,119,86,.6);">Claude in Chrome · Google Docs</span>
+    </div>
+  </div>
+
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/usecase-compare.png" alt="Claude in Chrome comparing laptop specs across multiple product pages into a Google Docs spreadsheet" class="screenshot reveal-scale" style="max-height:min(80vh,560px);">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 20 — USE CASE: BUILD CUSTOMER PERSONAS
+     ============================================================ -->
+<section class="slide split-slide" id="slide-uc2" aria-label="Build Customer Personas">
+  <span class="c-label c-tl">04 / Use Cases</span>
+  <div class="split-left" style="gap:var(--gap-sm);">
+    <div>
+      <div class="eyebrow reveal-left" style="margin-bottom:.5em;"><div class="eyebrow-line"></div><span>Case 02</span></div>
+      <h2 class="slide-main-title reveal-left">Build Customer<br>Personas</h2>
+      <p class="slide-subtitle reveal-left">Claude analyzes customer interviews, support tickets, and CRM data simultaneously to produce data-driven personas grounded in real behavioral patterns — not assumptions.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.4rem,.9vw,.75rem);">
+
+      <div style="background:rgba(218,119,86,.08);border:1px solid rgba(218,119,86,.22);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Overview</div>
+        <div style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.78);line-height:1.5;">Connect HubSpot CRM and Intercom support data, upload research files, then enable Extended Thinking. Claude cross-analyzes all sources and generates an interactive Artifact with 3+ distinct personas, clickable journey stages, and supporting customer quotes.</div>
+      </div>
+
+      <div style="background:rgba(250,249,245,.04);border:1px solid rgba(250,249,245,.1);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Outcomes</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:.3em;">
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>3+ behavioral personas auto-generated</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Friction points identified at each journey stage</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Actionable insights for product roadmap</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Executive report generated on request</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div style="background:rgba(250,249,245,.03);border:1px solid rgba(250,249,245,.08);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+      <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6em;">How It Works</div>
+      <div style="display:flex;flex-direction:column;gap:.5em;">
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">1</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Describe what you want to understand about your customers</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">"Identify distinct customer segments based on how they behave, what frustrates them, and where they drop off — build clickable personas with journey stages."</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">2</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Upload research files &amp; connect your CRM / CS tools</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Attach interview transcripts, NPS surveys, or support logs. Connect HubSpot and Intercom via Connectors so Claude can read behavioral data directly — no export needed.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">3</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Enable Extended Thinking &amp; run the analysis</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Claude cross-analyzes all sources simultaneously — 2,800+ customer records, support tickets, and CRM stages — and identifies behavioral clusters you may not have seen.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">4</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Explore the interactive Artifact &amp; follow up</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Click each persona to see their journey stages, friction points, and supporting quotes. Then ask: "Convert this into an executive report" or "What are the top 3 revenue opportunities?"</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal-left" style="display:flex;gap:var(--gap-sm);align-items:center;">
+      <a href="https://claude.com/resources/use-cases/build-customer-personas" target="_blank" class="link-btn">View Full Use Case</a>
+      <span style="font-family:var(--font-sans);font-size:var(--label);color:rgba(218,119,86,.6);">Extended Thinking · HubSpot · Intercom</span>
+    </div>
+  </div>
+
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/usecase-personas.png" alt="Behavioral Persona Explorer artifact showing three customer personas with journey metrics and behavioral analysis" class="screenshot reveal-scale" style="max-height:min(80vh,560px);">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 21 — USE CASE: ADAPT CONTENT ACROSS PLATFORMS
+     ============================================================ -->
+<section class="slide split-slide" id="slide-uc3" aria-label="Adapt Content Across Platforms">
+  <span class="c-label c-tl">04 / Use Cases</span>
+  <div class="split-left" style="gap:var(--gap-sm);">
+    <div>
+      <div class="eyebrow reveal-left" style="margin-bottom:.5em;"><div class="eyebrow-line"></div><span>Case 03</span></div>
+      <h2 class="slide-main-title reveal-left">Adapt Content<br>Across Platforms</h2>
+      <p class="slide-subtitle reveal-left">Transform a single blog post or whitepaper into LinkedIn carousels, Twitter threads, email sequences, podcast scripts, and infographics — each native to its channel, all in one workflow.</p>
+    </div>
+
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:clamp(.4rem,.9vw,.75rem);">
+
+      <div style="background:rgba(218,119,86,.08);border:1px solid rgba(218,119,86,.22);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Overview</div>
+        <div style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.78);line-height:1.5;">Connect Google Drive to provide source material and brand guidelines. Claude generates individual platform files plus an interactive tabbed Artifact showcasing all deliverables — ready to review, download, or share in one place.</div>
+      </div>
+
+      <div style="background:rgba(250,249,245,.04);border:1px solid rgba(250,249,245,.1);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+        <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.4em;">Outcomes</div>
+        <ul style="list-style:none;display:flex;flex-direction:column;gap:.3em;">
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Multi-channel content in a single workflow</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Platform-native tone &amp; format per channel</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Brand voice maintained across all outputs</li>
+          <li style="font-family:var(--font-sans);font-size:var(--label);color:rgba(250,249,245,.75);line-height:1.4;display:flex;gap:.4em;"><span style="color:var(--accent);flex-shrink:0;">→</span>Iterate audience &amp; strategy via conversation</li>
+        </ul>
+      </div>
+
+    </div>
+
+    <div style="background:rgba(250,249,245,.03);border:1px solid rgba(250,249,245,.08);border-radius:10px;padding:clamp(.6rem,1.4vw,1rem);" class="reveal-left">
+      <div style="font-family:var(--font-sans);font-size:var(--label);font-weight:700;color:var(--accent);letter-spacing:.1em;text-transform:uppercase;margin-bottom:.6em;">How It Works</div>
+      <div style="display:flex;flex-direction:column;gap:.5em;">
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">1</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Tell Claude your source content &amp; target platforms</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">"Repurpose this whitepaper into a LinkedIn carousel (10 slides), 5-email nurture sequence, Twitter thread, and podcast talking points — keeping our brand voice."</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">2</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Connect Google Drive &amp; share brand reference files</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Link your Drive folder so Claude can access the source document, past content samples, and brand style guide — no manual copy-paste into the chat window.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">3</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Claude generates all formats &amp; an interactive showcase</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Individual files are created for each channel. An interactive tabbed Artifact shows all outputs side-by-side — switch tabs to review LinkedIn, email, Twitter, and more in one view.</div></div>
+        </div>
+        <div style="display:flex;gap:.65em;align-items:flex-start;">
+          <span style="background:var(--accent);color:#fff;font-family:var(--font-sans);font-size:calc(var(--label)*.85);font-weight:700;width:1.5em;height:1.5em;border-radius:50%;display:flex;align-items:center;justify-content:center;flex-shrink:0;margin-top:.1em;">4</span>
+          <div><div style="font-family:var(--font-sans);font-size:var(--label);font-weight:600;color:var(--text-light);">Refine through conversation</div><div style="font-family:var(--font-sans);font-size:calc(var(--label)*.92);color:var(--gray-mid);line-height:1.4;">Ask: "Make the LinkedIn carousel more data-driven", "Rewrite email 3 for enterprise buyers", or "Add a CTA to the Twitter thread" — Claude iterates without starting over.</div></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="reveal-left" style="display:flex;gap:var(--gap-sm);align-items:center;">
+      <a href="https://claude.com/resources/use-cases/adapt-content-across-platforms" target="_blank" class="link-btn">View Full Use Case</a>
+      <span style="font-family:var(--font-sans);font-size:var(--label);color:rgba(218,119,86,.6);">Extended Thinking · Google Drive</span>
+    </div>
+  </div>
+
+  <div class="split-right" style="align-items:center;justify-content:center;">
+    <img src="claude-assets/usecase-adapt.png" alt="Content Repurposing Engine artifact showing one whitepaper transformed into LinkedIn, Twitter, Email, Podcast and Infographic formats" class="screenshot reveal-scale" style="max-height:min(80vh,560px);">
+  </div>
+</section>
+
+
+<!-- ============================================================
+     SLIDE 22 — CLOSING / GET STARTED
+     ============================================================ -->
+<section class="slide" id="slide-closing" aria-label="Get Started">
+  <div class="glow glow-a"></div>
+  <div class="closing-inner">
+    <div class="eyebrow reveal" style="justify-content:center;"><div class="eyebrow-line"></div><span>Next Steps</span><div class="eyebrow-line"></div></div>
+    <h2 style="font-family:var(--font-serif);font-size:var(--title-xl);font-weight:700;color:var(--text-light);line-height:1.05;text-align:center;" class="reveal">
+      Get started with<br><em style="color:var(--accent);font-style:italic;">Claude</em>
+    </h2>
+    <p style="font-family:var(--font-sans);font-size:var(--body);color:var(--gray-mid);line-height:1.7;max-width:540px;" class="reveal">
+      Sign in at <a href="https://claude.com/product/overview" target="_blank" style="color:var(--accent);text-decoration:none;border-bottom:1px solid rgba(218,119,86,.35);">claude.ai</a> using your work email. Download the Desktop App for Chat, Cowork, and Code in one place. Complete the free Claude 101 course to earn a shareable certificate.
+    </p>
+    <div class="btn-row reveal">
+      <a href="https://claude.com/product/overview" target="_blank" class="cta-btn">Open Claude →</a>
+      <a href="https://anthropic.skilljar.com/claude-101" target="_blank" class="cta-btn cta-btn-outline">Claude 101 Course →</a>
+    </div>
+    <div class="ref-links reveal">
+      <a href="https://anthropic.skilljar.com/" target="_blank" class="link-btn">Claude Course List</a>
+      <a href="https://www.youtube.com/@anthropic-ai" target="_blank" class="link-btn">YouTube Channel</a>
+    </div>
+    <p style="font-family:var(--font-sans);font-size:var(--label);color:rgba(176,174,165,.3);margin-top:clamp(.5rem,1.5vh,1.2rem);">
+      Samsung Electronics · Internal AI Adoption Guide · Claude 101 · 2025
+    </p>
+  </div>
+</section>
+
+
+<script>
+/* ===========================================
+   SLIDE PRESENTATION CONTROLLER
+   =========================================== */
+const slides = Array.from(document.querySelectorAll('.slide'));
+let current = 0;
+const progressBar = document.getElementById('progressBar');
+const navDotsEl  = document.getElementById('navDots');
+
+/* Build nav dots */
+slides.forEach((_, i) => {
+  const d = document.createElement('button');
+  d.className = 'nav-dot' + (i === 0 ? ' active' : '');
+  d.setAttribute('aria-label', `Slide ${i + 1}`);
+  d.addEventListener('click', () => goTo(i));
+  navDotsEl.appendChild(d);
+});
+
+function updateDots(idx) {
+  navDotsEl.querySelectorAll('.nav-dot').forEach((d, i) => d.classList.toggle('active', i === idx));
+}
+function updateProgress() {
+  progressBar.style.width = (slides.length <= 1 ? 100 : (current / (slides.length - 1)) * 100) + '%';
+}
+
+/* IntersectionObserver for reveals + state */
+new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      const idx = slides.indexOf(e.target);
+      if (idx !== -1) { current = idx; updateDots(idx); updateProgress(); }
+    }
+  });
+}, { threshold: 0.55 }).observe || void 0;
+
+const obs = new IntersectionObserver(entries => {
+  entries.forEach(e => {
+    if (e.isIntersecting) {
+      e.target.classList.add('visible');
+      const idx = slides.indexOf(e.target);
+      if (idx !== -1) { current = idx; updateDots(idx); updateProgress(); }
+    }
+  });
+}, { threshold: 0.55 });
+slides.forEach(s => obs.observe(s));
+
+function goTo(idx) {
+  idx = Math.max(0, Math.min(slides.length - 1, idx));
+  slides[idx].scrollIntoView({ behavior: 'smooth' });
+}
+function next() { goTo(current + 1); }
+function prev() { goTo(current - 1); }
+
+/* TOC deep-link helper (used by onclick in TOC items) */
+window.slideTo = function(id) {
+  const el = document.getElementById(id);
+  if (el) el.scrollIntoView({ behavior: 'smooth' });
+};
+
+/* Keyboard nav */
+document.addEventListener('keydown', e => {
+  if (e.target.getAttribute('contenteditable') === 'true') return;
+  if (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA') return;
+  switch (e.key) {
+    case 'ArrowDown': case 'ArrowRight': case ' ': e.preventDefault(); next(); break;
+    case 'ArrowUp':  case 'ArrowLeft':              e.preventDefault(); prev(); break;
+    case 'Home': e.preventDefault(); goTo(0); break;
+    case 'End':  e.preventDefault(); goTo(slides.length - 1); break;
+  }
+});
+
+/* Touch/swipe */
+let ty = 0;
+document.addEventListener('touchstart', e => { ty = e.touches[0].clientY; }, { passive: true });
+document.addEventListener('touchend', e => {
+  const dy = ty - e.changedTouches[0].clientY;
+  if (Math.abs(dy) > 45) dy > 0 ? next() : prev();
+}, { passive: true });
+
+/* Mouse wheel */
+let lastWheel = 0;
+document.addEventListener('wheel', e => {
+  const now = Date.now(); if (now - lastWheel < 650) return; lastWheel = now;
+  e.deltaY > 0 ? next() : prev();
+}, { passive: true });
+
+
+/* ===========================================
+   INLINE EDITOR
+   =========================================== */
+const editToggle = document.getElementById('editToggle');
+const editHotzone = document.getElementById('editHotzone');
+const editBar     = document.getElementById('editBar');
+const editSaveBtn = document.getElementById('editSaveBtn');
+let isEditing = false;
+let editables = [];
+let hideTimer = null;
+
+const showToggle = () => { clearTimeout(hideTimer); editToggle.classList.add('show'); };
+const hideToggle = () => {
+  hideTimer = setTimeout(() => { if (!isEditing) editToggle.classList.remove('show'); }, 400);
+};
+editHotzone.addEventListener('mouseenter', showToggle);
+editHotzone.addEventListener('mouseleave', hideToggle);
+editToggle.addEventListener('mouseenter', showToggle);
+editToggle.addEventListener('mouseleave', hideToggle);
+editHotzone.addEventListener('click', toggleEdit);
+editToggle.addEventListener('click', toggleEdit);
+
+document.addEventListener('keydown', e => {
+  if ((e.key === 'e' || e.key === 'E') && !e.target.getAttribute('contenteditable')) toggleEdit();
+  if ((e.ctrlKey || e.metaKey) && e.key === 's' && isEditing) { e.preventDefault(); download(); }
+});
+
+function toggleEdit() {
+  isEditing = !isEditing;
+  if (isEditing) {
+    editables = Array.from(document.querySelectorAll('h1,h2,h3,p,li,.card-body,.card-title,.toc-section,.toc-slides,.ch-desc,.ch-title,.slide-lead,.svp-val,.role-name,.chip-label'));
+    editables.forEach(el => el.setAttribute('contenteditable', 'true'));
+    editToggle.textContent = '✅ Done';
+    editToggle.classList.add('active');
+    editBar.classList.add('visible');
+  } else {
+    editables.forEach(el => el.removeAttribute('contenteditable'));
+    editToggle.textContent = '✏️ Edit';
+    editToggle.classList.remove('active');
+    editBar.classList.remove('visible');
+  }
+}
+
+/* ===========================================
+   RADAR CHARTS — What is Claude? (4 individual)
+   Axes: Reasoning · Long Context · Coding · Agentic Features · Multimodal
+   Scores: benchmark-based (SWE-Bench, GPQA, MMLU, vendor specs 2025 Q1)
+   =========================================== */
+(function() {
+  const AXES = ['Reasoning', 'Long\nContext', 'Coding', 'Agentic\nFeatures', 'Multimodal'];
+  const N = AXES.length;
+
+  // ① Reasoning    : GPQA Diamond (lmcouncil.ai, Apr 2026)
+  //                  Claude 90.5% / GPT-5 91.4% / Gemini 3.1 Pro 94.1%
+  // ② Long Context : window size + MRCR/NIAH recall quality
+  //                  Claude 200K <5% drop / GPT-5 128K / Gemini 1M+ 99.7% NIAH
+  // ③ Coding       : SWE-Bench Verified (lmcouncil.ai, Apr 2026)
+  //                  Claude 78.7% / GPT-5 76.9% / Gemini 75.6%
+  // ④ Agentic Feat : OSWorld computer-use leaderboard (o-mega.ai, 2026)
+  //                  Claude Sonnet 4.6 72.5% / GPT-5 ~65% / Gemini ~60%
+  // ⑤ Multimodal   : MMMU (lmcouncil.ai, Apr 2026)
+  //                  Claude 80.7% / GPT-5 85.4% / Gemini 81.0%
+  // Perplexity: search-focused product, not benchmarked on standard LLM evals
+  const CHARTS = [
+    { id: 'rc-claude',      color: '#da7756', scores: [9.1, 8.0, 7.9, 7.3, 8.1] },
+    { id: 'rc-chatgpt',     color: '#10a37f', scores: [9.1, 7.5, 7.7, 6.5, 8.5] },
+    { id: 'rc-gemini',      color: '#4285f4', scores: [9.4, 9.5, 7.6, 6.0, 8.1] },
+    { id: 'rc-perplexity',  color: '#a78bcc', scores: [6.0, 5.5, 2.5, 4.0, 5.5] },
+  ];
+
+  function hexToRgb(hex) {
+    return hex.match(/\w\w/g).slice(0, 3).map(h => parseInt(h, 16));
+  }
+
+  function drawSingleRadar(canvasId, color, scores) {
+    const canvas = document.getElementById(canvasId);
+    if (!canvas) return;
+    const W = canvas.offsetWidth  || 180;
+    const H = canvas.offsetHeight || 180;
+    if (W === 0 || H === 0) return;
+    const dpr = window.devicePixelRatio || 1;
+    canvas.width  = W * dpr;
+    canvas.height = H * dpr;
+    canvas.style.width  = W + 'px';
+    canvas.style.height = H + 'px';
+    const ctx = canvas.getContext('2d');
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    ctx.scale(dpr, dpr);
+
+    const cx = W / 2;
+    const cy = H / 2 + 6;
+    const R  = Math.min(W, H) * 0.30;
+
+    function pt(i, score) {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      return [cx + R * score / 10 * Math.cos(a), cy + R * score / 10 * Math.sin(a)];
+    }
+
+    /* grid rings */
+    for (let lv = 1; lv <= 5; lv++) {
+      ctx.beginPath();
+      for (let i = 0; i <= N; i++) {
+        const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+        const x = cx + R * lv / 5 * Math.cos(a);
+        const y = cy + R * lv / 5 * Math.sin(a);
+        i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+      }
+      ctx.closePath();
+      ctx.strokeStyle = lv === 5 ? 'rgba(255,255,255,.14)' : 'rgba(255,255,255,.06)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    /* axis spokes */
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      ctx.beginPath();
+      ctx.moveTo(cx, cy);
+      ctx.lineTo(cx + R * Math.cos(a), cy + R * Math.sin(a));
+      ctx.strokeStyle = 'rgba(255,255,255,.10)';
+      ctx.lineWidth = 0.8;
+      ctx.stroke();
+    }
+
+    /* filled polygon */
+    const [r, g, b] = hexToRgb(color);
+    ctx.beginPath();
+    scores.forEach((s, i) => {
+      const [x, y] = pt(i, s);
+      i === 0 ? ctx.moveTo(x, y) : ctx.lineTo(x, y);
+    });
+    ctx.closePath();
+    ctx.fillStyle   = `rgba(${r},${g},${b},0.18)`;
+    ctx.fill();
+    ctx.strokeStyle = color;
+    ctx.lineWidth   = 2;
+    ctx.stroke();
+
+    /* vertex dots */
+    scores.forEach((s, i) => {
+      const [x, y] = pt(i, s);
+      ctx.beginPath();
+      ctx.arc(x, y, 3, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.fill();
+    });
+
+    /* score value labels on dots — match "OpenAI · GPT-4o" label size (~label*.85) */
+    const fsDot = Math.max(5, Math.floor(W * 0.028));
+    ctx.font = `600 ${fsDot}px Poppins, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    scores.forEach((s, i) => {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const offset = 9;
+      const vx = cx + (R * s / 10 + offset) * Math.cos(a);
+      const vy = cy + (R * s / 10 + offset) * Math.sin(a);
+      ctx.fillStyle = color;
+      ctx.fillText(s % 1 === 0 ? s.toFixed(0) : s.toFixed(1), vx, vy);
+    });
+
+    /* axis labels */
+    const fsLbl = Math.max(5, Math.floor(W * 0.030));
+    ctx.font = `${fsLbl}px Poppins, sans-serif`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    for (let i = 0; i < N; i++) {
+      const a = (i / N) * Math.PI * 2 - Math.PI / 2;
+      const lx = cx + R * 1.68 * Math.cos(a);
+      const ly = cy + R * 1.68 * Math.sin(a);
+      ctx.fillStyle = 'rgba(176,174,165,.85)';
+      const lines = AXES[i].split('\n');
+      lines.forEach((ln, li) =>
+        ctx.fillText(ln, lx, ly + (li - (lines.length - 1) / 2) * (fsLbl + 2))
+      );
+    }
+  }
+
+  function drawAll() {
+    CHARTS.forEach(c => drawSingleRadar(c.id, c.color, c.scores));
+  }
+
+  /* trigger when "What is Claude?" slide enters viewport */
+  function initRadars() {
+    const slide = document.getElementById('slide-what');
+    if (!slide) { return; }
+    const obs = new IntersectionObserver(entries => {
+      if (entries[0].isIntersecting) {
+        /* slight delay so layout is settled */
+        setTimeout(drawAll, 80);
+      }
+    }, { threshold: 0.25 });
+    obs.observe(slide);
+    window.addEventListener('resize', drawAll);
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initRadars);
+  } else {
+    initRadars();
+  }
+})();
+
+function download() {
+  const blob = new Blob([document.documentElement.outerHTML], { type: 'text/html' });
+  const url  = URL.createObjectURL(blob);
+  const a    = Object.assign(document.createElement('a'), { href: url, download: 'claude-101-samsung-edited.html' });
+  a.click(); URL.revokeObjectURL(url);
+}
+editSaveBtn.addEventListener('click', download);
+</script>
+</body>
+</html>
